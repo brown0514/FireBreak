@@ -1,10 +1,14 @@
 import os
 import sys
+from time import sleep
 from unittest import TestProgram
 from tkinter import *
+import random
 # values.index(min(values)
 
 tk_root = Tk()
+tk_root.update()
+tk_root.title("Windy Firebreak Location in Trees")
 
 g_radius 		= 1
 g_widthUnit 	= 100
@@ -18,7 +22,7 @@ g_unburnColor	= "#ADDCB8"
 
 # Canvas
 canvas = Canvas(width=g_width, height=g_height, bg="#cedbd2")
-canvas.grid(row=1, column=2)
+canvas.pack()
 
 INF = 100000000	# define infinite number
 
@@ -176,61 +180,30 @@ def add_edge(x, y):
 	add_vertex(x)
 	add_vertex(y)
 
-# input tree data
-def input_tree(strInputPath):
+# random generate tree data
+def random_input_tree():
 	global g_N, g_B, g_adj, g_S, g_burnList
-	with open(strInputPath, "r") as fp:
-		inputData = fp.read().split()
-	
-	pos = 0
-	cnt = len(inputData)
-
-	# input N - the number of vertices, B - maximum budget
-	if pos + 1 >= cnt:
-		return input_error()
-	g_N = int(inputData[pos])
-	if g_N <= 0:
-		return input_error()
-	g_B = int(inputData[pos + 1])
-	if g_B < 0:
-		return input_error()
+	if g_N <= 0 or g_S < 0 or g_B < 0 or g_S > g_N:
+		return False
 	if g_B >= g_N:
 		g_B = g_N - 1
-	pos += 2
-
-	# input adjacent info
-	for i in range(g_N - 1):
-		if pos + 1 >= cnt:
-			return input_error()
-		x = int(inputData[pos])
-		y = int(inputData[pos + 1])
-		pos += 2
-		add_edge(x, y)
-	
-	# check the number of vertices
-	if g_N != len(g_vertexList):
-		return input_error()
-	
-	# input burning tree list
-	if pos >= cnt:
-		return input_error()
-	g_S = int(inputData[pos])
-	pos += 1
-	if g_S != cnt - pos:
-		return input_error()
+	for i in range(1, g_N):
+		j = random.randint(0, i - 1)
+		add_edge(i, j)
+	ids = []
 	for i in range(g_S):
-		g_burnList.append(int(inputData[pos + i]))
+		ids.append(1)
+	for i in range(g_S, g_N):
+		ids.append(0)
+	random.shuffle(ids)
+	for i in range(g_N):
+		if ids[i]:
+			g_burnList.append(i)
 	return True
-
-def print_usage():
-	print("{} <input file name>".format(sys.argv[0]))
 
 def initialize():
 	global g_widthUnit, g_heightUnit, g_root_node, g_radius
-	if len(sys.argv) != 2:
-		print_usage()
-		sys.exit(1)
-	if not input_tree(sys.argv[1]):
+	if not random_input_tree():
 		sys.exit(1)
 	for i in range(g_N):
 		g_node.append(newNode())
@@ -289,7 +262,81 @@ def mark_burn_vertices():
 		if not g_node[i].remove_flag and g_node[i].parent and g_node[i].parent.status:
 			g_node[i].status = 1
 
-def main():
+class Num:
+	def __init__(self, master):
+		self.master = master
+		self.master.attributes("-topmost", True)
+		toplevel_offsetx, toplevel_offsety = int(tk_root.winfo_x() + g_width / 2), int(tk_root.winfo_y() + g_height / 2)
+		padx = 70
+		pady = 5
+		self.master.geometry(f"+{toplevel_offsetx - padx}+{toplevel_offsety - pady}")
+		self.frame = Frame(self.master)
+		self.label = Label(self.master, text = "Please insert the number of trees")
+		self.entry = Entry(self.master)
+		self.button_ok = Button(self.frame, text="OK", width=25, command=self.get_vert_num)
+		self.button_ok.pack()
+		self.entry.pack()
+		self.label.pack()
+		self.frame.pack()
+	
+	def get_vert_num(self):
+		global g_N
+		g_N = self.entry.get()
+		g_N = int(g_N)
+		self.master.destroy()
+		tk_burn = Toplevel(tk_root)
+		input = Burn(tk_burn)
+
+class Burn:
+	def __init__(self, master):
+		self.master = master
+		self.master.attributes("-topmost", True)
+		toplevel_offsetx, toplevel_offsety = int(tk_root.winfo_x() + g_width / 2), int(tk_root.winfo_y() + g_height / 2)
+		padx = 70
+		pady = 5
+		self.master.geometry(f"+{toplevel_offsetx - padx}+{toplevel_offsety - pady}")
+		self.frame = Frame(self.master, width=100, height=200)
+		self.label = Label(self.master, text = "Please insert the number of burnt trees")
+		self.entry = Entry(self.master)
+		self.button_ok = Button(self.frame, text="OK", width=25, command=self.get_burn_num)
+		self.button_ok.pack()
+		self.entry.pack()
+		self.label.pack()
+		self.frame.pack()
+	
+	def get_burn_num(self):
+		global g_S
+		g_S = self.entry.get()
+		g_S = int(g_S)
+		self.master.destroy()
+		tk_budget = Toplevel(tk_root)
+		input = Budget(tk_budget)
+
+class Budget:
+	def __init__(self, master):
+		self.master = master
+		self.master.attributes("-topmost", True)
+		toplevel_offsetx, toplevel_offsety = int(tk_root.winfo_x() + g_width / 2), int(tk_root.winfo_y() + g_height / 2)
+		padx = 70
+		pady = 5
+		self.master.geometry(f"+{toplevel_offsetx - padx}+{toplevel_offsety - pady}")
+		self.frame = Frame(self.master, width=100, height=200)
+		self.label = Label(self.master, text = "Please insert the budget!")
+		self.entry = Entry(self.master)
+		self.button_ok = Button(self.frame, text="OK", width=25, command=self.get_budget)
+		self.button_ok.pack()
+		self.entry.pack()
+		self.label.pack()
+		self.frame.pack()
+	
+	def get_budget(self):
+		global g_B
+		g_B = self.entry.get()
+		g_B = int(g_B)
+		self.master.destroy()
+		start_work()
+
+def start_work():
 	initialize()
 	saved_vertices, opt_cut_system = TableA()
 	# draw the inital graph
@@ -302,10 +349,16 @@ def main():
 	# draw the splited graph
 	draw_graph(g_width / 2, -1, -1, 1, 1, g_root_node)
 
-	txt = "Number of saved vertices = %d" % saved_vertices
+	txt = "Budget: %d, Number of saved vertices = %d" % (g_B, saved_vertices)
 	canvas.create_text(g_width /2, g_heightUnit / 2, text=txt)
 
-	tk_root.mainloop()
+def generate_tree():
+	tk_num = Toplevel(tk_root)
+	input = Num(tk_num)
+
+def main():
+	generate_tree()
 
 if __name__ == "__main__":
 	main()
+	tk_root.mainloop()
