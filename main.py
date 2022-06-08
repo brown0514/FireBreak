@@ -1,7 +1,24 @@
 import os
 import sys
 from unittest import TestProgram
+from tkinter import *
 # values.index(min(values)
+
+tk_root = Tk()
+
+g_radius 		= 1
+g_widthUnit 	= 100
+g_heightUnit 	= 100
+g_width			= 1000
+g_height		= 500
+g_columnNum		= 1
+g_rowNum		= 1
+g_burnColor		= "#EE9D9D"
+g_unburnColor	= "#ADDCB8"
+
+# Canvas
+canvas = Canvas(width=g_width, height=g_height, bg="#cedbd2")
+canvas.grid(row=1, column=2)
 
 INF = 100000000	# define infinite number
 
@@ -13,6 +30,7 @@ g_B = 0			# maximum cost
 g_burnList = []	# list of burning trees
 g_vertexList = []
 g_node = []
+g_root_node = None
 g_isVisited = {} # visit flag for make_tree
 
 g_A_plus = {}	# A +
@@ -24,9 +42,12 @@ class newNode:
 		self.id = -1
 		self.value = 0
 		self.size = 0
+		self.depth = 1
+		self.width = 1
 		self.parent = self.child = self.next = None
 		self.adj_num = 0
 		self.adj = []
+		self.remove_flag = 0
 
 # Algorithm 2 Subprocedure for table ST
 def TableST(id, B):
@@ -60,14 +81,13 @@ def TableST(id, B):
 				# j-th child burn
 				if b > 0:
 					z = max((x for x in range(b)), key = lambda x: ST_minus[(j - 1, x)][0] + g_A_plus[(child.id, b - 1 - x)][0])
-					ST_minus[(j, b)] = (ST_minus[(j - 1, z)][0] + g_A_plus[(child.id, b - 1 - z)][0], ST_minus[(j - 1, z)][1] + g_A_plus[(child.id, b - 1 - z)][1])
+					ST_minus[(j, b)] = (ST_minus[(j - 1, z)][0] + g_A_plus[(child.id, b - 1 - z)][0], ST_minus[(j - 1, z)][1] + g_A_plus[(child.id, b - 1 - z)][1] + [child.id])
 				# j-th child not burn
 				if not child.status:
 					zz = max((x for x in range(b + 1)), key = lambda x: ST_minus[(j - 1, x)][0] + g_A_minus[(child.id, b - x)][0])
-					temp_m = ST_minus[(j - 1, z)][0] + g_A_minus[(child.id, b - z)][0]
+					temp_m = ST_minus[(j - 1, zz)][0] + g_A_minus[(child.id, b - zz)][0]
 					if not (j, b) in ST_minus or temp_m >= ST_minus[(j, b)][0]:
-						ST_minus[(j, b)] = (temp_m, ST_minus[(j - 1, z)][1] + g_A_minus[(child.id, b - z)][1])
-	
+						ST_minus[(j, b)] = (temp_m, ST_minus[(j - 1, zz)][1] + g_A_minus[(child.id, b - zz)][1])
 	# value A <- value ST
 	for b in range(B + 1):
 		g_A_plus[(id, b)] = ST_plus[(g_node[id].adj_num, b)]
@@ -82,6 +102,7 @@ def TableA():
 	else:
 		return g_A_plus[(g_N - 1, g_B)]
 
+# make tree and initialize for determining initial infos such as parent, child, id, status, etc
 def make_tree(start_pos, cur_vertex):
 	global g_node, g_burnList, g_isVisited
 
@@ -116,11 +137,17 @@ def make_tree(start_pos, cur_vertex):
 	# setting parent and child
 	if child_node:
 		g_node[pos].child = child_node
+		g_node[pos].width = 0
+		g_node[pos].depth = 0
 		while child_node:
+			g_node[pos].width += child_node.width
+			if g_node[pos].depth < child_node.depth:
+				g_node[pos].depth = child_node.depth
 			g_node[pos].adj_num += 1
 			g_node[pos].adj.append(child_node)
 			child_node.parent = g_node[pos]
 			child_node = child_node.next
+		g_node[pos].depth += 1
 	
 	return tot_vertect_cnt
 
@@ -158,7 +185,7 @@ def input_tree(strInputPath):
 	pos = 0
 	cnt = len(inputData)
 
-	# input N, S
+	# input N - the number of vertices, B - maximum budget
 	if pos + 1 >= cnt:
 		return input_error()
 	g_N = int(inputData[pos])
@@ -199,6 +226,7 @@ def print_usage():
 	print("{} <input file name>".format(sys.argv[0]))
 
 def initialize():
+	global g_widthUnit, g_heightUnit, g_root_node, g_radius
 	if len(sys.argv) != 2:
 		print_usage()
 		sys.exit(1)
@@ -206,24 +234,78 @@ def initialize():
 		sys.exit(1)
 	for i in range(g_N):
 		g_node.append(newNode())
-	root = g_vertexList[0]
-	make_tree(0, root)
+	make_tree(0, g_vertexList[0])
+	g_root_node = g_node[g_N - 1]
+
+	# initial calculation for drawing graph
+	g_columnNum = g_root_node.width + 2
+	g_rowNum = g_root_node.depth + 2
+	g_heightUnit = g_height / g_rowNum
+	g_widthUnit = g_width / g_columnNum / 2
+	g_radius = g_heightUnit
+	if g_radius > g_widthUnit:
+		g_radius = g_widthUnit
+	g_radius /= 4
+	# for i in range(g_N):
+	# 	if g_node[i].status:
+	# 		print("vert: [{}], adj: ".format(i), end="")
+	# 	else:
+	# 		print("vert: {}, adj: ".format(i), end="")
+	# 	for v in g_node[i].adj:
+	# 		print("{}, ".format(v.id), end="")
+	# 	print("")
+
+def draw_graph(width_st, px, py, depth, st, node):
+
+	# calculate the postion where the node be drawn
+	x = width_st + (st + node.width / 2) * g_widthUnit
+	y = (depth + 0.5) * g_heightUnit
+
+	# determine the color of the node
+	color = g_unburnColor
+	if node.status:
+		color = g_burnColor
+
+	# draw line between the node and its parent	
+	if px >= 0 and node.remove_flag == 0:
+		canvas.create_line(x, y, px, py, width=3, fill="black")
+
+	# recursive drawing children
+	cur_pos = st
+	for v in node.adj:
+		draw_graph(width_st, x, y, depth + 1, cur_pos, v)
+		cur_pos += v.width
+
+	# draw the node
+	canvas.create_oval(x-g_radius, y-g_radius, x+g_radius, y+g_radius, fill=color, outline="black")
+	canvas.create_text(x, y, text=str(node.id))
+
+def mark_burn_vertices():
 	for i in range(g_N):
-		if g_node[i].status:
-			print("vert: [{}], adj: ".format(i), end="")
-		else:
-			print("vert: {}, adj: ".format(i), end="")
-		for v in g_node[i].adj:
-			print("{}, ".format(v.id), end="")
-		print("")
+		if not g_node[i].remove_flag and g_node[i].status and g_node[i].parent:
+			g_node[i].parent.status = 1
+
+	for i in range(g_N - 1, -1, -1):
+		if not g_node[i].remove_flag and g_node[i].parent and g_node[i].parent.status:
+			g_node[i].status = 1
 
 def main():
 	initialize()
 	saved_vertices, opt_cut_system = TableA()
-	print("Number of saved vertices = %d" % saved_vertices)
+	# draw the inital graph
+	draw_graph(0, -1, -1, 1, 1, g_root_node)
+
 	for i in opt_cut_system:
-		print(i)
-	
+		g_node[i].remove_flag = 1
+	mark_burn_vertices()
+
+	# draw the splited graph
+	draw_graph(g_width / 2, -1, -1, 1, 1, g_root_node)
+
+	txt = "Number of saved vertices = %d" % saved_vertices
+	canvas.create_text(g_width /2, g_heightUnit / 2, text=txt)
+
+	tk_root.mainloop()
 
 if __name__ == "__main__":
 	main()
